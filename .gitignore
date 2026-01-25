@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+release/
+
+# iOS build artifacts (keep ios/ folder but ignore build files)
+ios/App/Pods/
+ios/App/App/public/
+ios/DerivedData/
+*.xcworkspace
+
+# Capacitor
+capacitor.config.json
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Debug
+*.map
