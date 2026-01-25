@@ -81,13 +81,14 @@ const loadSoundFiles = async () => {
 
         console.log('Sound files loaded from Electron:', files);
       } else {
-        // Web/Capacitor: use hardcoded file paths (bundled in dist/sounds)
-        FART_SOUNDS.classic.files = ['./sounds/Classic/classic1.mp3', './sounds/Classic/classic2.mp3', './sounds/Classic/classic3.mp3'];
-        FART_SOUNDS.squeaky.files = ['./sounds/Squeeky/squeeky1.mp3', './sounds/Squeeky/squeeky2.mp3', './sounds/Squeeky/squeeky3.mp3'];
-        FART_SOUNDS.thunder.files = ['./sounds/Thunder/thunder1.mp3', './sounds/Thunder/thunder2.mp3', './sounds/Thunder/thunder3.mp3'];
-        FART_SOUNDS.wet.files = ['./sounds/Wet/wet1.mp3', './sounds/Wet/wet2.mp3', './sounds/Wet/wet3.mp3'];
-        FART_SOUNDS.long.files = ['./sounds/Long/long1.mp3', './sounds/Long/long2.mp3', './sounds/Long/long3.mp3'];
-        FART_SOUNDS.rapidfire.files = ['./sounds/RapidFire/rapidfire1.mp3', './sounds/RapidFire/rapidfire2.mp3', './sounds/RapidFire/rapidfire3.mp3'];
+        // Web/Capacitor: use absolute paths from public folder
+        const basePath = window.Capacitor ? '.' : '';
+        FART_SOUNDS.classic.files = [`${basePath}/sounds/Classic/classic1.mp3`, `${basePath}/sounds/Classic/classic2.mp3`, `${basePath}/sounds/Classic/classic3.mp3`];
+        FART_SOUNDS.squeaky.files = [`${basePath}/sounds/Squeeky/squeeky1.mp3`, `${basePath}/sounds/Squeeky/squeeky2.mp3`, `${basePath}/sounds/Squeeky/squeeky3.mp3`];
+        FART_SOUNDS.thunder.files = [`${basePath}/sounds/Thunder/thunder1.mp3`, `${basePath}/sounds/Thunder/thunder2.mp3`, `${basePath}/sounds/Thunder/thunder3.mp3`];
+        FART_SOUNDS.wet.files = [`${basePath}/sounds/Wet/wet1.mp3`, `${basePath}/sounds/Wet/wet2.mp3`, `${basePath}/sounds/Wet/wet3.mp3`];
+        FART_SOUNDS.long.files = [`${basePath}/sounds/Long/long1.mp3`, `${basePath}/sounds/Long/long2.mp3`, `${basePath}/sounds/Long/long3.mp3`];
+        FART_SOUNDS.rapidfire.files = [`${basePath}/sounds/RapidFire/rapidfire1.mp3`, `${basePath}/sounds/RapidFire/rapidfire2.mp3`, `${basePath}/sounds/RapidFire/rapidfire3.mp3`];
 
         console.log('Using web/Capacitor sound files');
       }
@@ -96,7 +97,7 @@ const loadSoundFiles = async () => {
     } catch (error) {
       console.error('Error loading sound files:', error);
       // Use fallback
-      FART_SOUNDS.classic.files = ['./sounds/Classic/classic1.mp3'];
+      FART_SOUNDS.classic.files = ['/sounds/Classic/classic1.mp3'];
       soundFilesLoaded = true;
     }
   })();

@@ -1,30 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Clock, Shuffle, Check } from 'lucide-react';
 import useStore from '../stores/useStore';
 import { getBuiltInSounds } from '../utils/audioEngine';
-import { getAllCustomSounds } from '../utils/storage';
 
-function RandomFarts() {
+function RandomFarts({ customSounds = [] }) {
   const { settings = {}, updateRandomFarts } = useStore();
   const randomFarts = settings.randomFarts || {};
 
-  const [customSounds, setCustomSounds] = useState([]);
   const [showSoundPicker, setShowSoundPicker] = useState(false);
 
   const builtInSounds = getBuiltInSounds();
-
-  // Load custom sounds
-  useEffect(() => {
-    const loadSounds = async () => {
-      try {
-        const sounds = await getAllCustomSounds();
-        setCustomSounds(sounds || []);
-      } catch (err) {
-        setCustomSounds([]);
-      }
-    };
-    loadSounds();
-  }, []);
 
   const allSounds = [
     ...builtInSounds,

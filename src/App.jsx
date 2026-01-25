@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Settings } from 'lucide-react';
-import useStore from './stores/useStore';
+import useStore, { FREE_TRIAL_LIMIT } from './stores/useStore';
 import Header from './components/Header';
 import TabNav from './components/TabNav';
 import InstantFart from './components/InstantFart';
 import Timer from './components/Timer';
 import Alarms from './components/Alarms';
 import SettingsModal from './components/SettingsModal';
+import PaywallModal from './components/PaywallModal';
+import TrialBanner from './components/TrialBanner';
 import { getAllCustomSounds, getCustomSound } from './utils/storage';
 import { playFartSound, playRandomFartSound, playCustomSound, getBuiltInSounds } from './utils/audioEngine';
 import { showAlarmNotification, showRandomFartNotification, showFunNotification, requestNotificationPermission } from './utils/notifications';
@@ -14,9 +16,20 @@ import { showAlarmNotification, showRandomFartNotification, showFunNotification,
 function App() {
   const [activeTab, setActiveTab] = useState('instant');
   const [showSettings, setShowSettings] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
   const [customSounds, setCustomSounds] = useState([]);
 
-  const { settings, alarms, stats, updateAlarm, updateRandomFarts, updateFunNotifications, incrementFartCount } = useStore();
+  const { settings, alarms, stats, isPremium, updateAlarm, updateRandomFarts, updateFunNotifications, incrementFartCount } = useStore();
+
+  // Check if trial has ended
+  const isTrialEnded = !isPremium && (stats?.totalFarts ?? 0) >= FREE_TRIAL_LIMIT;
+
+  // Show paywall automatically when trial ends
+  useEffect(() => {
+    if (isTrialEnded) {
+      setShowPaywall(true);
+    }
+  }, [isTrialEnded]);
 
   // Helper to play a sound from the selected sounds list
   const playFromSelectedSounds = useCallback(async (volume) => {
@@ -126,7 +139,8 @@ function App() {
 
   // Random farts scheduler
   useEffect(() => {
-    if (!settings.randomFarts.enabled) return;
+    // Don't run random farts if trial ended or feature disabled
+    if (!settings.randomFarts.enabled || isTrialEnded) return;
 
     let timeout;
 
@@ -151,6 +165,14 @@ function App() {
       updateRandomFarts({ nextScheduledTime: nextTime });
 
       timeout = setTimeout(() => {
+        // Check trial status again when timer fires
+        const currentStats = useStore.getState().stats;
+        const currentPremium = useStore.getState().isPremium;
+        if (!currentPremium && (currentStats?.totalFarts ?? 0) >= FREE_TRIAL_LIMIT) {
+          // Trial ended, don't play
+          return;
+        }
+
         const now = new Date();
 
         // Check active hours
@@ -178,7 +200,7 @@ function App() {
     return () => {
       if (timeout) clearTimeout(timeout);
     };
-  }, [settings.randomFarts.enabled, settings.randomFarts.minInterval, settings.randomFarts.maxInterval, settings.randomFarts.selectedSounds, playFromSelectedSounds]);
+  }, [settings.randomFarts.enabled, settings.randomFarts.minInterval, settings.randomFarts.maxInterval, settings.randomFarts.selectedSounds, playFromSelectedSounds, isTrialEnded]);
 
   // Listen for quick fart from tray menu
   useEffect(() => {
@@ -264,10 +286,11 @@ function App() {
           <InstantFart
             customSounds={customSounds}
             onCustomSoundsChange={refreshCustomSounds}
+            onShowPaywall={() => setShowPaywall(true)}
           />
         );
       case 'timer':
-        return <Timer />;
+        return <Timer customSounds={customSounds} onShowPaywall={() => setShowPaywall(true)} />;
       case 'alarms':
         return <Alarms customSounds={customSounds} />;
       default:
@@ -279,6 +302,9 @@ function App() {
 
   return (
     <div className={`min-h-screen flex flex-col ${darkMode ? 'dark bg-gray-900' : 'bg-gradient-to-br from-purple-50 via-pink-50 to-yellow-50'}`}>
+      {/* Trial Banner - shows farts remaining */}
+      <TrialBanner onUpgrade={() => setShowPaywall(true)} />
+
       <Header onSettingsClick={() => setShowSettings(true)} />
 
       <main className="flex-1 overflow-auto pb-20">
@@ -289,6 +315,11 @@ function App() {
 
       {showSettings && (
         <SettingsModal onClose={() => setShowSettings(false)} />
+      )}
+
+      {/* Paywall Modal - shows when trial ends or user taps upgrade */}
+      {showPaywall && (
+        <PaywallModal onClose={() => !isTrialEnded && setShowPaywall(false)} />
       )}
     </div>
   );

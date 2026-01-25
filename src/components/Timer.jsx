@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Square, ChevronUp, ChevronDown, Volume2 } from 'lucide-react';
-import useStore from '../stores/useStore';
+import { Play, Square, ChevronUp, ChevronDown, Volume2, Lock } from 'lucide-react';
+import useStore, { FREE_TRIAL_LIMIT } from '../stores/useStore';
 import { playFartSound, playRandomFartSound, playCustomSound, getBuiltInSounds } from '../utils/audioEngine';
-import { getCustomSound, getAllCustomSounds } from '../utils/storage';
+import { getCustomSound } from '../utils/storage';
 
 // Number input with up/down buttons
 function TimeInput({ value = 0, onChange, max, label }) {
@@ -46,10 +46,12 @@ function TimeInput({ value = 0, onChange, max, label }) {
   );
 }
 
-function Timer() {
+function Timer({ customSounds = [], onShowPaywall }) {
   const {
     timer = {},
     settings = {},
+    stats = {},
+    isPremium,
     setTimerTime,
     setTimerSound,
     setTimerRunning,
@@ -57,6 +59,10 @@ function Timer() {
     resetTimer,
     incrementFartCount,
   } = useStore();
+
+  // Check trial status
+  const totalFarts = stats.totalFarts ?? 0;
+  const isTrialEnded = !isPremium && totalFarts >= FREE_TRIAL_LIMIT;
 
   // Safe defaults for timer values
   const hours = timer.hours ?? 0;
@@ -66,24 +72,9 @@ function Timer() {
   const remainingSeconds = timer.remainingSeconds ?? 60;
   const timerSound = timer.sound ?? 'classic';
 
-  const [customSounds, setCustomSounds] = useState([]);
   const [showSoundPicker, setShowSoundPicker] = useState(false);
   const intervalRef = useRef(null);
   const builtInSounds = getBuiltInSounds();
-
-  // Load custom sounds
-  useEffect(() => {
-    const loadSounds = async () => {
-      try {
-        const sounds = await getAllCustomSounds();
-        setCustomSounds(sounds || []);
-      } catch (err) {
-        console.error('Failed to load custom sounds:', err);
-        setCustomSounds([]);
-      }
-    };
-    loadSounds();
-  }, []);
 
   const allSounds = [
     ...builtInSounds,
@@ -134,25 +125,6 @@ function Timer() {
           }
 
           if (incrementFartCount) incrementFartCount();
-
-          // Handle repeat mode
-          if (settings.repeatMode?.enabled) {
-            const count = settings.repeatMode.type === 'infinite' ? 50 : (settings.repeatMode.count || 3) - 1;
-            for (let i = 0; i < count; i++) {
-              await new Promise((r) => setTimeout(r, 1000));
-              if (settings.randomize) {
-                await playRandomFartSound(volume);
-              } else if (soundId?.startsWith('custom_')) {
-                const sound = await getCustomSound(soundId);
-                if (sound?.audioBlob) {
-                  await playCustomSound(sound.audioBlob, volume);
-                }
-              } else {
-                await playFartSound(soundId || 'classic', volume);
-              }
-              if (incrementFartCount) incrementFartCount();
-            }
-          }
         } catch (err) {
           console.error('Error playing sound:', err);
         }
@@ -168,12 +140,18 @@ function Timer() {
   }, [isRunning, remainingSeconds, timerSound, settings, setTimerRunning, resetTimer, incrementFartCount]);
 
   const handleStart = useCallback(() => {
+    // Check if trial ended
+    if (isTrialEnded) {
+      if (onShowPaywall) onShowPaywall();
+      return;
+    }
+
     const totalSeconds = hours * 3600 + minutes * 60 + seconds;
     if (totalSeconds > 0) {
       setTimerRemaining(totalSeconds);
       setTimerRunning(true);
     }
-  }, [hours, minutes, seconds, setTimerRemaining, setTimerRunning]);
+  }, [hours, minutes, seconds, setTimerRemaining, setTimerRunning, isTrialEnded, onShowPaywall]);
 
   const handleStop = useCallback(() => {
     setTimerRunning(false);

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Volume2, Repeat, Shuffle, Bell, Clock, Trophy, Flame, Moon, Sun, MessageCircle } from 'lucide-react';
+import { X, Volume2, Shuffle, Bell, Trophy, Flame, Moon, Sun, MessageCircle } from 'lucide-react';
 import useStore from '../stores/useStore';
 import { requestNotificationPermission, getNotificationPermission } from '../utils/notifications';
 
@@ -12,31 +12,13 @@ const ALL_ACHIEVEMENTS = {
 };
 
 function SettingsModal({ onClose }) {
-  const { settings = {}, stats = {}, updateSettings, updateRepeatMode, updateRandomFarts, updateFunNotifications } = useStore();
+  const { settings = {}, stats = {}, updateSettings, updateFunNotifications } = useStore();
   const [notificationStatus, setNotificationStatus] = useState(getNotificationPermission());
 
   // Safe stats defaults
   const totalFarts = stats.totalFarts ?? 0;
   const currentStreak = stats.currentStreak ?? 0;
   const achievements = stats.achievements ?? [];
-
-  // Calculate next fart time display
-  const getNextFartTimeDisplay = () => {
-    if (!settings.randomFarts.enabled || !settings.randomFarts.nextScheduledTime) {
-      return null;
-    }
-
-    const nextTime = new Date(settings.randomFarts.nextScheduledTime);
-    const now = Date.now();
-    const diff = settings.randomFarts.nextScheduledTime - now;
-
-    if (diff <= 0) return 'Any moment now...';
-
-    const minutes = Math.floor(diff / 60000);
-    const timeStr = nextTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-
-    return `${timeStr} (in ${minutes} min)`;
-  };
 
   const handleNotificationToggle = async () => {
     if (!settings.notificationsEnabled) {
@@ -57,9 +39,9 @@ function SettingsModal({ onClose }) {
         onClick={onClose}
       />
 
-      <div className="relative bg-white dark:bg-gray-800 rounded-3xl mx-4 w-full max-w-sm max-h-[85vh] overflow-hidden shadow-2xl modal-content">
+      <div className="relative bg-white dark:bg-gray-800 rounded-3xl mx-4 w-full max-w-sm max-h-[85vh] flex flex-col shadow-2xl modal-content">
         {/* Header */}
-        <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+        <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-6 py-4 flex items-center justify-between rounded-t-3xl">
           <h2 className="text-xl font-bold text-gray-800 dark:text-white">Settings</h2>
           <button
             onClick={onClose}
@@ -69,7 +51,7 @@ function SettingsModal({ onClose }) {
           </button>
         </div>
 
-        <div className="overflow-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-6 space-y-6">
           {/* Dark Mode Toggle - AT THE TOP */}
           <section className="p-4 rounded-2xl bg-gradient-to-r from-purple-100 to-pink-100 dark:from-purple-900/50 dark:to-pink-900/50">
             <label className="flex items-center justify-between cursor-pointer">
@@ -197,130 +179,6 @@ function SettingsModal({ onClose }) {
             </p>
           </section>
 
-          <hr className="border-gray-100" />
-
-          {/* Repeat Mode */}
-          <section className="space-y-3">
-            <label className="flex items-center justify-between cursor-pointer">
-              <div className="flex items-center gap-2">
-                <Repeat size={20} className="text-purple-500" />
-                <span className="font-bold text-gray-700 dark:text-gray-200">Repeat Mode</span>
-              </div>
-              <button
-                onClick={() => updateRepeatMode({ enabled: !settings.repeatMode.enabled })}
-                className={`toggle-switch ${settings.repeatMode.enabled ? 'active' : ''}`}
-              />
-            </label>
-
-            {settings.repeatMode.enabled && (
-              <div className="pl-7 space-y-3">
-                {/* Repeat times option */}
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="repeatType"
-                    checked={settings.repeatMode.type === 'times'}
-                    onChange={() => updateRepeatMode({ type: 'times' })}
-                    className="w-4 h-4 text-purple-500"
-                  />
-                  <span className="text-gray-600 dark:text-gray-300">Fart</span>
-                  <input
-                    type="number"
-                    min={2}
-                    max={20}
-                    value={settings.repeatMode.count}
-                    onChange={(e) => updateRepeatMode({ count: parseInt(e.target.value) || 3 })}
-                    className="w-16 px-2 py-1 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-center"
-                    disabled={settings.repeatMode.type !== 'times'}
-                  />
-                  <span className="text-gray-600 dark:text-gray-300">times</span>
-                </label>
-
-                {/* Infinite option */}
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="repeatType"
-                    checked={settings.repeatMode.type === 'infinite'}
-                    onChange={() => updateRepeatMode({ type: 'infinite' })}
-                    className="w-4 h-4 text-purple-500"
-                  />
-                  <span className="text-gray-600 dark:text-gray-300">Fart Until I Turn It Off</span>
-                </label>
-              </div>
-            )}
-          </section>
-
-          <hr className="border-gray-100" />
-
-          {/* Random Farts Mode */}
-          <section className="space-y-3">
-            <label className="flex items-center justify-between cursor-pointer">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">🎲</span>
-                <span className="font-bold text-gray-700 dark:text-gray-200">Random Farts</span>
-              </div>
-              <button
-                onClick={() => updateRandomFarts({ enabled: !settings.randomFarts.enabled })}
-                className={`toggle-switch ${settings.randomFarts.enabled ? 'active' : ''}`}
-              />
-            </label>
-            <p className="text-sm text-gray-400 dark:text-gray-500 pl-7">
-              Surprise you with random farts throughout the day
-            </p>
-
-            {settings.randomFarts.enabled && (
-              <div className="pl-7 space-y-4 pt-2">
-                {/* Min interval */}
-                <div className="space-y-1">
-                  <label className="text-sm text-gray-600 dark:text-gray-300">
-                    Minimum interval: {settings.randomFarts.minInterval} min
-                  </label>
-                  <input
-                    type="range"
-                    min={1}
-                    max={120}
-                    value={settings.randomFarts.minInterval}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value);
-                      updateRandomFarts({ minInterval: val });
-                    }}
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Max interval */}
-                <div className="space-y-1">
-                  <label className="text-sm text-gray-600 dark:text-gray-300">
-                    Maximum interval: {settings.randomFarts.maxInterval} min
-                  </label>
-                  <input
-                    type="range"
-                    min={1}
-                    max={240}
-                    value={settings.randomFarts.maxInterval}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value);
-                      updateRandomFarts({ maxInterval: val });
-                    }}
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Next fart time */}
-                {getNextFartTimeDisplay() && (
-                  <div className="flex items-center gap-2 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-xl">
-                    <Clock size={18} className="text-purple-500" />
-                    <span className="text-sm text-purple-700 dark:text-purple-300">
-                      Next fart: {getNextFartTimeDisplay()}
-                    </span>
-                  </div>
-                )}
-
-              </div>
-            )}
-          </section>
-
           <hr className="border-gray-100 dark:border-gray-700" />
 
           {/* Fun Notifications */}
@@ -364,11 +222,33 @@ function SettingsModal({ onClose }) {
             )}
           </section>
 
-          {/* Version info */}
-          <div className="text-center pt-4">
-            <p className="text-xs text-gray-300 dark:text-gray-600">The Fart App v1.0.0</p>
-            <p className="text-xs text-gray-300 dark:text-gray-600">Made with 💨 and love</p>
-          </div>
+          <hr className="border-gray-100 dark:border-gray-700" />
+
+          {/* About Section */}
+          <section className="space-y-4 pt-2">
+            <div className="text-center space-y-3">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 mx-auto">
+                <span className="text-3xl">💨</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-gray-800 dark:text-white">The Fart App</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Version 1.0</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-700/50 text-center space-y-2">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Created with love (and gas) by
+              </p>
+              <p className="font-bold text-purple-600 dark:text-purple-400">
+                SpaceSocks Studios
+              </p>
+            </div>
+
+            <p className="text-xs text-center text-gray-400 dark:text-gray-500 pb-4">
+              Thank you for downloading! May your farts be legendary.
+            </p>
+          </section>
         </div>
       </div>
     </div>

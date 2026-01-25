@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { Mic, X, Volume2, Trophy, Flame } from 'lucide-react';
-import useStore from '../stores/useStore';
+import { Mic, X, Volume2, Trophy, Flame, Lock } from 'lucide-react';
+import useStore, { FREE_TRIAL_LIMIT } from '../stores/useStore';
 import { playFartSound, playRandomFartSound, playCustomSound, getBuiltInSounds } from '../utils/audioEngine';
 import RecordingModal from './RecordingModal';
 import RandomFarts from './RandomFarts';
@@ -17,14 +17,14 @@ const ACHIEVEMENTS = {
   week_streak: { name: 'Week Warrior', emoji: '🔥', description: '7 day streak!' },
 };
 
-function InstantFart({ customSounds, onCustomSoundsChange }) {
+function InstantFart({ customSounds, onCustomSoundsChange, onShowPaywall }) {
   const [isPressed, setIsPressed] = useState(false);
   const [showRecording, setShowRecording] = useState(false);
   const [playingSound, setPlayingSound] = useState(null);
   const [hoveredCustom, setHoveredCustom] = useState(null);
   const [showAchievement, setShowAchievement] = useState(null);
 
-  const { settings = {}, selectedSound = 'classic', setSelectedSound, stats = {}, incrementFartCount } = useStore();
+  const { settings = {}, selectedSound = 'classic', setSelectedSound, stats = {}, isPremium, incrementFartCount } = useStore();
   const builtInSounds = getBuiltInSounds();
 
   // Safe stats defaults
@@ -32,7 +32,16 @@ function InstantFart({ customSounds, onCustomSoundsChange }) {
   const currentStreak = stats.currentStreak ?? 0;
   const achievements = stats.achievements ?? [];
 
+  // Check trial status
+  const isTrialEnded = !isPremium && totalFarts >= FREE_TRIAL_LIMIT;
+
   const handleFartPress = useCallback(async () => {
+    // Check if trial ended
+    if (isTrialEnded) {
+      if (onShowPaywall) onShowPaywall();
+      return;
+    }
+
     setIsPressed(true);
     hapticsMedium(); // Haptic feedback on iOS/Android
     const previousAchievements = [...achievements];
@@ -51,25 +60,6 @@ function InstantFart({ customSounds, onCustomSoundsChange }) {
 
       incrementFartCount();
 
-      // Handle repeat mode
-      if (settings.repeatMode.enabled) {
-        const repeatCount = settings.repeatMode.type === 'infinite' ? 100 : settings.repeatMode.count - 1;
-        for (let i = 0; i < repeatCount; i++) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          if (settings.randomize) {
-            await playRandomFartSound(settings.volume);
-          } else if (selectedSound.startsWith('custom_')) {
-            const sound = await getCustomSound(selectedSound);
-            if (sound?.audioBlob) {
-              await playCustomSound(sound.audioBlob, settings.volume);
-            }
-          } else {
-            await playFartSound(selectedSound, settings.volume);
-          }
-          incrementFartCount();
-        }
-      }
-
       // Check for new achievements
       setTimeout(() => {
         const currentStats = useStore.getState().stats;
@@ -86,7 +76,7 @@ function InstantFart({ customSounds, onCustomSoundsChange }) {
     }
 
     setTimeout(() => setIsPressed(false), 150);
-  }, [settings, selectedSound, achievements, incrementFartCount]);
+  }, [settings, selectedSound, achievements, incrementFartCount, isTrialEnded, onShowPaywall]);
 
   const handleSoundSelect = useCallback(async (soundId) => {
     setSelectedSound(soundId);
@@ -273,7 +263,7 @@ function InstantFart({ customSounds, onCustomSoundsChange }) {
       </button>
 
       {/* Random Farts Feature - Prominent placement! */}
-      <RandomFarts />
+      <RandomFarts customSounds={customSounds} />
 
       {/* Recording Modal */}
       {showRecording && (

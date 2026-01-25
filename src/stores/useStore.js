@@ -1,9 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+// Free trial limit
+export const FREE_TRIAL_LIMIT = 50;
+
 const useStore = create(
   persist(
     (set, get) => ({
+      // Premium status
+      isPremium: false,
+
       // Selected sound for instant fart
       selectedSound: 'classic',
 
@@ -63,6 +69,8 @@ const useStore = create(
       },
 
       // Actions
+      setPremium: (isPremium) => set({ isPremium }),
+
       setSelectedSound: (sound) => set({ selectedSound: sound }),
 
       addCustomSound: (sound) =>
@@ -168,6 +176,18 @@ const useStore = create(
         })),
 
       // Stats actions
+      resetStats: () =>
+        set({
+          isPremium: false,
+          stats: {
+            totalFarts: 0,
+            longestStreak: 0,
+            currentStreak: 0,
+            lastFartDate: null,
+            achievements: [],
+          },
+        }),
+
       incrementFartCount: () =>
         set((state) => {
           const today = new Date().toDateString();
@@ -220,6 +240,7 @@ const useStore = create(
     {
       name: 'fart-app-storage',
       partialize: (state) => ({
+        isPremium: state.isPremium,
         selectedSound: state.selectedSound,
         settings: state.settings,
         timer: {

@@ -191,6 +191,11 @@ input[type="range"]::-webkit-slider-thumb:active {
   animation: modal-slide 0.3s ease-out;
 }
 
+.modal-content > div:last-child {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
 @keyframes modal-slide {
   from {
     opacity: 0;
