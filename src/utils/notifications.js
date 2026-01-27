@@ -1,38 +1,18 @@
 // Desktop & Mobile Notification Utilities
-import { LocalNotifications } from '@capacitor/local-notifications';
-import { Capacitor } from '@capacitor/core';
-
-// Check if running on native platform (iOS/Android)
-const isNative = () => Capacitor.isNativePlatform();
 
 // Check if notifications are supported
 export const isNotificationSupported = () => {
-  if (isNative()) return true;
   return 'Notification' in window;
 };
 
 // Check current notification permission status
 export const getNotificationPermission = () => {
-  if (isNative()) {
-    // For native, we'll check async but return 'default' for sync calls
-    return 'default';
-  }
   if (!isNotificationSupported()) return 'denied';
   return Notification.permission;
 };
 
 // Request notification permission
 export const requestNotificationPermission = async () => {
-  if (isNative()) {
-    try {
-      const result = await LocalNotifications.requestPermissions();
-      return result.display === 'granted' ? 'granted' : 'denied';
-    } catch (error) {
-      console.error('Error requesting native notification permission:', error);
-      return 'denied';
-    }
-  }
-
   if (!isNotificationSupported()) {
     return 'denied';
   }
@@ -49,40 +29,15 @@ export const requestNotificationPermission = async () => {
   return 'denied';
 };
 
-// Notification ID counter for native notifications
-let notificationId = 1;
-
 // Show a notification
 export const showNotification = async (title, body, options = {}) => {
-  // Try Capacitor native notifications first (iOS/Android)
-  if (isNative()) {
-    try {
-      await LocalNotifications.schedule({
-        notifications: [
-          {
-            title,
-            body,
-            id: notificationId++,
-            schedule: { at: new Date(Date.now() + 100) }, // Immediate
-            sound: options.silent ? undefined : 'default',
-            actionTypeId: '',
-            extra: null
-          }
-        ]
-      });
-      return;
-    } catch (error) {
-      console.error('Native notification error:', error);
-    }
-  }
-
   // Try Electron API (desktop)
   if (window.electronAPI?.showNotification) {
     window.electronAPI.showNotification(title, body);
     return;
   }
 
-  // Fallback to browser notifications (web)
+  // Browser/web notifications
   if (!isNotificationSupported() || Notification.permission !== 'granted') {
     console.log('Notification not shown:', title, body);
     return;
