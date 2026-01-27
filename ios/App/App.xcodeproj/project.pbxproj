@@ -16,8 +16,6 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		A1B2C3D401000001 /* Capacitor in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D501000001 /* Capacitor */; };
 		A1B2C3D401000002 /* Cordova in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D501000002 /* Cordova */; };
-		A1B2C3D401000003 /* CapacitorApp in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D501000003 /* CapacitorApp */; };
-		A1B2C3D401000004 /* CapacitorHaptics in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D501000004 /* CapacitorHaptics */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,8 +38,6 @@
 			files = (
 				A1B2C3D401000001 /* Capacitor in Frameworks */,
 				A1B2C3D401000002 /* Cordova in Frameworks */,
-				A1B2C3D401000003 /* CapacitorApp in Frameworks */,
-				A1B2C3D401000004 /* CapacitorHaptics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -99,8 +95,6 @@
 			packageProductDependencies = (
 				A1B2C3D501000001 /* Capacitor */,
 				A1B2C3D501000002 /* Cordova */,
-				A1B2C3D501000003 /* CapacitorApp */,
-				A1B2C3D501000004 /* CapacitorHaptics */,
 			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
@@ -133,7 +127,6 @@
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
 				A1B2C3D601000001 /* XCRemoteSwiftPackageReference "capacitor-swift-pm" */,
-				A1B2C3D601000002 /* XCRemoteSwiftPackageReference "capacitor-plugins" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -375,14 +368,6 @@
 				version = 8.0.1;
 			};
 		};
-		A1B2C3D601000002 /* XCRemoteSwiftPackageReference "capacitor-plugins" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ionic-team/capacitor-plugins.git";
-			requirement = {
-				kind = exactVersion;
-				version = 8.0.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -395,16 +380,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A1B2C3D601000001 /* XCRemoteSwiftPackageReference "capacitor-swift-pm" */;
 			productName = Cordova;
-		};
-		A1B2C3D501000003 /* CapacitorApp */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = A1B2C3D601000002 /* XCRemoteSwiftPackageReference "capacitor-plugins" */;
-			productName = CapacitorApp;
-		};
-		A1B2C3D501000004 /* CapacitorHaptics */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = A1B2C3D601000002 /* XCRemoteSwiftPackageReference "capacitor-plugins" */;
-			productName = CapacitorHaptics;
 		};
 /* End XCSwiftPackageProductDependency section */
 
