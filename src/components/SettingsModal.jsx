@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Volume2, Shuffle, Bell, Trophy, Flame, Moon, Sun, MessageCircle } from 'lucide-react';
+import { X, Volume2, Bell, Trophy, Flame, Moon, Sun, MessageCircle } from 'lucide-react';
 import useStore from '../stores/useStore';
 import { requestNotificationPermission, getNotificationPermission } from '../utils/notifications';
 
@@ -162,24 +162,6 @@ function SettingsModal({ onClose }) {
             </p>
           </section>
 
-          {/* Randomize */}
-          <section className="space-y-3">
-            <label className="flex items-center justify-between cursor-pointer">
-              <div className="flex items-center gap-2">
-                <Shuffle size={20} className="text-purple-500" />
-                <span className="font-bold text-gray-700 dark:text-gray-200">Randomize Fart Sounds</span>
-              </div>
-              <button
-                onClick={() => updateSettings({ randomize: !settings.randomize })}
-                className={`toggle-switch ${settings.randomize ? 'active' : ''}`}
-              />
-            </label>
-            <p className="text-sm text-gray-400 dark:text-gray-500 pl-7">
-              When enabled, plays a random sound each time
-            </p>
-          </section>
-
-          <hr className="border-gray-100 dark:border-gray-700" />
 
           {/* Fun Notifications */}
           <section className="space-y-3">

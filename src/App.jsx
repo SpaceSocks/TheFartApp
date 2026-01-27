@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Settings } from 'lucide-react';
 import useStore, { FREE_TRIAL_LIMIT } from './stores/useStore';
 import Header from './components/Header';
@@ -6,6 +6,7 @@ import TabNav from './components/TabNav';
 import InstantFart from './components/InstantFart';
 import Timer from './components/Timer';
 import Alarms from './components/Alarms';
+import AlarmPlayer from './components/AlarmPlayer';
 import SettingsModal from './components/SettingsModal';
 import PaywallModal from './components/PaywallModal';
 import TrialBanner from './components/TrialBanner';
@@ -19,7 +20,10 @@ function App() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [customSounds, setCustomSounds] = useState([]);
 
-  const { settings, alarms, stats, isPremium, updateAlarm, updateRandomFarts, updateFunNotifications, incrementFartCount } = useStore();
+  const { settings, alarms, stats, isPremium, activeAlarm, setActiveAlarm, clearActiveAlarm, updateAlarm, updateRandomFarts, updateFunNotifications, incrementFartCount } = useStore();
+
+  // Track snoozed alarms
+  const snoozedAlarmsRef = useRef(new Map()); // Map of alarmId -> snoozeUntilTime
 
   // Check if trial has ended
   const isTrialEnded = !isPremium && (stats?.totalFarts ?? 0) >= FREE_TRIAL_LIMIT;
@@ -84,35 +88,70 @@ function App() {
   // Alarm checker - runs every minute
   useEffect(() => {
     const checkAlarms = () => {
+      // Don't trigger new alarms if one is already active
+      if (activeAlarm) {
+        console.log('Alarm checker: skipping, alarm already active');
+        return;
+      }
+
       const now = new Date();
       const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const currentDay = now.getDay(); // 0 = Sunday, 6 = Saturday
       const today = now.toDateString();
+      const currentTimestamp = now.getTime();
 
-      alarms.forEach((alarm) => {
-        if (!alarm.enabled) return;
-        if (alarm.time !== currentTime) return;
+      console.log('Alarm checker running at', currentTime, '| Alarms:', alarms.length);
+
+      for (const alarm of alarms) {
+        if (!alarm.enabled) {
+          console.log(`Alarm "${alarm.name}" is disabled, skipping`);
+          continue;
+        }
+
+        console.log(`Checking alarm "${alarm.name}" - time: ${alarm.time} vs current: ${currentTime}`);
+
+        // Check if alarm is snoozed
+        const snoozeUntil = snoozedAlarmsRef.current.get(alarm.id);
+        if (snoozeUntil && currentTimestamp < snoozeUntil) {
+          continue; // Still snoozed
+        } else if (snoozeUntil && currentTimestamp >= snoozeUntil) {
+          // Snooze time is up - trigger the alarm!
+          snoozedAlarmsRef.current.delete(alarm.id);
+          console.log('Snooze ended, triggering alarm:', alarm.name);
+          setActiveAlarm(alarm);
+
+          // Show notification
+          if (settings.notificationsEnabled) {
+            const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+            showAlarmNotification(alarm.name + ' (Snoozed)', timeStr);
+          }
+          return; // Only trigger one alarm at a time
+        }
+
+        // Normal alarm check
+        if (alarm.time !== currentTime) {
+          console.log(`  Time mismatch: ${alarm.time} !== ${currentTime}`);
+          continue;
+        }
 
         // Check if already triggered today
-        if (alarm.lastTriggered === today) return;
+        if (alarm.lastTriggered === today) {
+          console.log(`  Already triggered today`);
+          continue;
+        }
+
+        console.log(`  TIME MATCH! Checking repeat settings...`);
 
         // Check repeat settings
         const isWeekday = currentDay >= 1 && currentDay <= 5;
         const isWeekend = currentDay === 0 || currentDay === 6;
 
-        if (alarm.repeat === 'weekdays' && !isWeekday) return;
-        if (alarm.repeat === 'weekends' && !isWeekend) return;
+        if (alarm.repeat === 'weekdays' && !isWeekday) continue;
+        if (alarm.repeat === 'weekends' && !isWeekend) continue;
 
-        // Trigger alarm
+        // Trigger alarm - activate the alarm player
         console.log('Triggering alarm:', alarm.name);
-
-        // Play sound
-        const soundId = alarm.sound || 'classic';
-        if (settings.randomize) {
-          playRandomFartSound(settings.volume);
-        } else {
-          playFartSound(soundId, settings.volume);
-        }
+        setActiveAlarm(alarm);
 
         // Show notification
         if (settings.notificationsEnabled) {
@@ -127,15 +166,32 @@ function App() {
         if (alarm.repeat === 'once') {
           updateAlarm(alarm.id, { enabled: false });
         }
-      });
+
+        return; // Only trigger one alarm at a time
+      }
     };
 
-    // Check immediately and then every 30 seconds
+    // Check immediately and then every 5 seconds (more responsive)
     checkAlarms();
-    const interval = setInterval(checkAlarms, 30000);
+    const interval = setInterval(checkAlarms, 5000);
 
     return () => clearInterval(interval);
-  }, [alarms, settings, updateAlarm]);
+  }, [alarms, settings, updateAlarm, activeAlarm, setActiveAlarm]);
+
+  // Handle alarm stop
+  const handleAlarmStop = useCallback(() => {
+    clearActiveAlarm();
+  }, [clearActiveAlarm]);
+
+  // Handle alarm snooze
+  const handleAlarmSnooze = useCallback((minutes) => {
+    if (!activeAlarm) return;
+
+    const snoozeUntil = Date.now() + (minutes * 60 * 1000);
+    snoozedAlarmsRef.current.set(activeAlarm.id, snoozeUntil);
+    console.log(`Alarm snoozed for ${minutes} minutes until ${new Date(snoozeUntil).toLocaleTimeString()}`);
+    clearActiveAlarm();
+  }, [activeAlarm, clearActiveAlarm]);
 
   // Random farts scheduler
   useEffect(() => {
@@ -320,6 +376,16 @@ function App() {
       {/* Paywall Modal - shows when trial ends or user taps upgrade */}
       {showPaywall && (
         <PaywallModal onClose={() => !isTrialEnded && setShowPaywall(false)} />
+      )}
+
+      {/* Alarm Player - shows when an alarm is ringing */}
+      {activeAlarm && (
+        <AlarmPlayer
+          alarm={activeAlarm}
+          customSounds={customSounds}
+          onStop={handleAlarmStop}
+          onSnooze={handleAlarmSnooze}
+        />
       )}
     </div>
   );

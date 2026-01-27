@@ -150,6 +150,12 @@ const useStore = create(
           };
         }),
 
+      // Active alarm state (for when alarm is ringing)
+      activeAlarm: null,
+
+      setActiveAlarm: (alarm) => set({ activeAlarm: alarm }),
+      clearActiveAlarm: () => set({ activeAlarm: null }),
+
       // Alarm actions
       addAlarm: (alarm) =>
         set((state) => ({

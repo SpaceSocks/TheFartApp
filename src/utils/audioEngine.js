@@ -175,17 +175,24 @@ const playAudioBuffer = (audioBuffer, volume = 0.8) => {
   currentSource = source;
   currentGainNode = gainNode;
 
+  const duration = audioBuffer.duration;
+  console.log('Playing audio buffer, duration:', duration, 'seconds');
+
   source.start();
 
+  // Wait for the sound to finish using a timeout based on duration
+  // This is more reliable than onended which can be flaky
   return new Promise((resolve) => {
-    source.onended = () => {
+    const waitTime = Math.ceil(duration * 1000) + 50; // Add 50ms buffer
+    setTimeout(() => {
       // Clear tracking if this is still the current source
       if (currentSource === source) {
         currentSource = null;
         currentGainNode = null;
       }
-      resolve(audioBuffer.duration);
-    };
+      console.log('Sound finished after', duration, 'seconds');
+      resolve(duration);
+    }, waitTime);
   });
 };
 
@@ -265,15 +272,20 @@ export const playCustomSound = async (audioBlob, volume = 0.8) => {
         currentSource = source;
         currentGainNode = gainNode;
 
+        const duration = audioBuffer.duration;
+        console.log('Playing custom sound, duration:', duration, 'seconds');
+
         source.start();
-        source.onended = () => {
-          // Clear tracking if this is still the current source
+
+        // Wait for the sound to finish using timeout
+        const waitTime = Math.ceil(duration * 1000) + 50;
+        setTimeout(() => {
           if (currentSource === source) {
             currentSource = null;
             currentGainNode = null;
           }
-          resolve(audioBuffer.duration);
-        };
+          resolve(duration);
+        }, waitTime);
       } catch (err) {
         reject(err);
       }
