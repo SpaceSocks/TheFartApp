@@ -2,14 +2,11 @@
 node_modules/
 
 # Build outputs
-dist/
 release/
 
 # iOS build artifacts (keep ios/ folder but ignore build files)
 ios/App/Pods/
-ios/App/App/public/
 ios/DerivedData/
-*.xcworkspace
 
 # Capacitor
 capacitor.config.json
