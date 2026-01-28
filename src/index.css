@@ -16,7 +16,7 @@ html, body, #root {
 }
 
 body {
-  background: linear-gradient(135deg, #f5f3ff 0%, #fdf2f8 50%, #fffbeb 100%);
+  background: #111827;
   min-height: 100vh;
 }
 
