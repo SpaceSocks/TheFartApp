@@ -62,17 +62,22 @@ const isCapacitor = () => {
   return window.Capacitor !== undefined;
 };
 
-// Get the correct base URL for audio files on iOS/Capacitor
-const getAudioBasePath = () => {
-  if (window.Capacitor?.getPlatform?.() === 'ios') {
-    // iOS Capacitor uses capacitor:// scheme - use absolute paths
-    return '';
-  } else if (window.Capacitor) {
-    // Android or other Capacitor platforms
-    return '';
+// Check if we're on iOS
+const isIOS = () => {
+  return window.Capacitor?.getPlatform?.() === 'ios' ||
+    /iPad|iPhone|iPod/.test(navigator.userAgent);
+};
+
+// Convert file path for Capacitor iOS
+const getCapacitorUrl = (path) => {
+  // On iOS Capacitor, use Capacitor.convertFileSrc if available
+  if (window.Capacitor?.convertFileSrc) {
+    // For web assets, they're served from the app's web directory
+    // The path should be relative to the web root
+    const fullPath = path.startsWith('/') ? path : '/' + path;
+    return window.Capacitor.convertFileSrc(fullPath);
   }
-  // Web fallback
-  return '';
+  return path;
 };
 
 // Load sound files from Electron or use web/Capacitor fallback
@@ -94,16 +99,15 @@ const loadSoundFiles = async () => {
 
         console.log('Sound files loaded from Electron:', files);
       } else {
-        // Web/Capacitor: use absolute paths from public folder
-        const basePath = getAudioBasePath();
-        FART_SOUNDS.classic.files = [`${basePath}/sounds/Classic/classic1.mp3`, `${basePath}/sounds/Classic/classic2.mp3`, `${basePath}/sounds/Classic/classic3.mp3`];
-        FART_SOUNDS.squeaky.files = [`${basePath}/sounds/Squeeky/squeeky1.mp3`, `${basePath}/sounds/Squeeky/squeeky2.mp3`, `${basePath}/sounds/Squeeky/squeeky3.mp3`];
-        FART_SOUNDS.thunder.files = [`${basePath}/sounds/Thunder/thunder1.mp3`, `${basePath}/sounds/Thunder/thunder2.mp3`, `${basePath}/sounds/Thunder/thunder3.mp3`];
-        FART_SOUNDS.wet.files = [`${basePath}/sounds/Wet/wet1.mp3`, `${basePath}/sounds/Wet/wet2.mp3`, `${basePath}/sounds/Wet/wet3.mp3`];
-        FART_SOUNDS.long.files = [`${basePath}/sounds/Long/long1.mp3`, `${basePath}/sounds/Long/long2.mp3`, `${basePath}/sounds/Long/long3.mp3`];
-        FART_SOUNDS.rapidfire.files = [`${basePath}/sounds/RapidFire/rapidfire1.mp3`, `${basePath}/sounds/RapidFire/rapidfire2.mp3`, `${basePath}/sounds/RapidFire/rapidfire3.mp3`];
+        // Web/Capacitor: use paths from public folder
+        FART_SOUNDS.classic.files = ['/sounds/Classic/classic1.mp3', '/sounds/Classic/classic2.mp3', '/sounds/Classic/classic3.mp3'];
+        FART_SOUNDS.squeaky.files = ['/sounds/Squeeky/squeeky1.mp3', '/sounds/Squeeky/squeeky2.mp3', '/sounds/Squeeky/squeeky3.mp3'];
+        FART_SOUNDS.thunder.files = ['/sounds/Thunder/thunder1.mp3', '/sounds/Thunder/thunder2.mp3', '/sounds/Thunder/thunder3.mp3'];
+        FART_SOUNDS.wet.files = ['/sounds/Wet/wet1.mp3', '/sounds/Wet/wet2.mp3', '/sounds/Wet/wet3.mp3'];
+        FART_SOUNDS.long.files = ['/sounds/Long/long1.mp3', '/sounds/Long/long2.mp3', '/sounds/Long/long3.mp3'];
+        FART_SOUNDS.rapidfire.files = ['/sounds/RapidFire/rapidfire1.mp3', '/sounds/RapidFire/rapidfire2.mp3', '/sounds/RapidFire/rapidfire3.mp3'];
 
-        console.log('Using web/Capacitor sound files, platform:', window.Capacitor?.getPlatform?.() || 'web');
+        console.log('Sound files configured for platform:', window.Capacitor?.getPlatform?.() || 'web');
       }
 
       soundFilesLoaded = true;
@@ -128,12 +132,6 @@ const audioCache = new Map();
 let currentSource = null;
 let currentGainNode = null;
 let currentHtmlAudio = null;
-
-// Check if we're on iOS
-const isIOS = () => {
-  return window.Capacitor?.getPlatform?.() === 'ios' ||
-    /iPad|iPhone|iPod/.test(navigator.userAgent);
-};
 
 // Load an MP3 file and return audio buffer
 const loadAudioFile = async (url) => {
@@ -167,27 +165,57 @@ const playWithHtmlAudio = (url, volume = 0.8) => {
   return new Promise((resolve, reject) => {
     // Stop any currently playing HTML audio
     if (currentHtmlAudio) {
-      currentHtmlAudio.pause();
+      try {
+        currentHtmlAudio.pause();
+        currentHtmlAudio.src = '';
+      } catch (e) {}
       currentHtmlAudio = null;
     }
 
-    const audio = new Audio(url);
+    // Convert URL for Capacitor if needed
+    const audioUrl = isCapacitor() ? getCapacitorUrl(url) : url;
+    console.log('Playing audio URL:', audioUrl);
+
+    const audio = new Audio();
+
+    // iOS-specific attributes
+    audio.setAttribute('playsinline', '');
+    audio.setAttribute('webkit-playsinline', '');
+    audio.preload = 'auto';
     audio.volume = volume;
+
     currentHtmlAudio = audio;
 
+    audio.oncanplaythrough = () => {
+      console.log('Audio can play through, starting playback');
+      audio.play().then(() => {
+        console.log('Audio playback started successfully');
+      }).catch((e) => {
+        console.error('Audio play() failed:', e);
+        reject(e);
+      });
+    };
+
     audio.onended = () => {
+      console.log('Audio ended, duration:', audio.duration);
       if (currentHtmlAudio === audio) {
         currentHtmlAudio = null;
       }
-      resolve(audio.duration);
+      resolve(audio.duration || 1);
     };
 
     audio.onerror = (e) => {
-      console.error('HTML Audio error:', e);
-      reject(new Error('Failed to play audio'));
+      console.error('HTML Audio error:', e, 'URL:', audioUrl);
+      console.error('Audio error code:', audio.error?.code, 'message:', audio.error?.message);
+      if (currentHtmlAudio === audio) {
+        currentHtmlAudio = null;
+      }
+      reject(new Error(`Failed to play audio: ${audio.error?.message || 'Unknown error'}`));
     };
 
-    audio.play().catch(reject);
+    // Set source and load
+    audio.src = audioUrl;
+    audio.load();
   });
 };
 
@@ -242,16 +270,13 @@ const playAudioBuffer = (audioBuffer, volume = 0.8) => {
   source.start();
 
   // Wait for the sound to finish using a timeout based on duration
-  // This is more reliable than onended which can be flaky
   return new Promise((resolve) => {
-    const waitTime = Math.ceil(duration * 1000) + 50; // Add 50ms buffer
+    const waitTime = Math.ceil(duration * 1000) + 50;
     setTimeout(() => {
-      // Clear tracking if this is still the current source
       if (currentSource === source) {
         currentSource = null;
         currentGainNode = null;
       }
-      console.log('Sound finished after', duration, 'seconds');
       resolve(duration);
     }, waitTime);
   });
@@ -276,15 +301,16 @@ export const playFartSound = async (soundId, volume = 0.8) => {
   const randomIndex = Math.floor(Math.random() * sound.files.length);
   const fileUrl = sound.files[randomIndex];
 
-  console.log(`Playing ${soundId} (${randomIndex + 1}/${sound.files.length}): ${fileUrl}, iOS: ${isIOS()}`);
+  console.log(`Playing ${soundId} (${randomIndex + 1}/${sound.files.length}): ${fileUrl}`);
+  console.log('Platform:', window.Capacitor?.getPlatform?.() || 'web', 'isIOS:', isIOS());
 
-  // On iOS, use HTML5 Audio for more reliable playback
+  // Always try HTML5 Audio first on iOS (more reliable)
   if (isIOS()) {
     try {
       return await playWithHtmlAudio(fileUrl, volume);
     } catch (error) {
-      console.error('iOS HTML Audio failed, trying Web Audio API:', error);
-      // Fall through to Web Audio API
+      console.error('iOS HTML Audio failed:', error);
+      // Try Web Audio API as fallback
     }
   }
 
@@ -294,14 +320,23 @@ export const playFartSound = async (soundId, volume = 0.8) => {
 
     // Resume audio context if suspended (needed for user gesture requirement)
     if (ctx.state === 'suspended') {
+      console.log('Resuming suspended audio context');
       await ctx.resume();
     }
 
-    const audioBuffer = await loadAudioFile(fileUrl);
+    const actualUrl = isCapacitor() ? getCapacitorUrl(fileUrl) : fileUrl;
+    const audioBuffer = await loadAudioFile(actualUrl);
     return await playAudioBuffer(audioBuffer, volume);
   } catch (error) {
-    console.error('Error playing fart sound:', error);
-    return 0;
+    console.error('Error playing fart sound with Web Audio:', error);
+
+    // Last resort: try HTML5 Audio even on non-iOS
+    try {
+      return await playWithHtmlAudio(fileUrl, volume);
+    } catch (htmlError) {
+      console.error('HTML Audio also failed:', htmlError);
+      return 0;
+    }
   }
 };
 
@@ -318,6 +353,36 @@ export const playCustomSound = async (audioBlob, volume = 0.8) => {
   // Stop any currently playing sound first
   stopCurrentSound();
 
+  // On iOS, try using blob URL with HTML5 Audio
+  if (isIOS()) {
+    return new Promise((resolve, reject) => {
+      const blobUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio();
+      audio.setAttribute('playsinline', '');
+      audio.setAttribute('webkit-playsinline', '');
+      audio.volume = volume;
+      currentHtmlAudio = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(blobUrl);
+        if (currentHtmlAudio === audio) {
+          currentHtmlAudio = null;
+        }
+        resolve(audio.duration || 1);
+      };
+
+      audio.onerror = (e) => {
+        URL.revokeObjectURL(blobUrl);
+        console.error('Custom audio error:', e);
+        reject(new Error('Failed to play custom audio'));
+      };
+
+      audio.src = blobUrl;
+      audio.play().catch(reject);
+    });
+  }
+
+  // Web Audio API for non-iOS
   const ctx = getAudioContext();
 
   if (ctx.state === 'suspended') {
@@ -340,16 +405,12 @@ export const playCustomSound = async (audioBlob, volume = 0.8) => {
         source.connect(gainNode);
         gainNode.connect(ctx.destination);
 
-        // Track this as the current source
         currentSource = source;
         currentGainNode = gainNode;
 
         const duration = audioBuffer.duration;
-        console.log('Playing custom sound, duration:', duration, 'seconds');
-
         source.start();
 
-        // Wait for the sound to finish using timeout
         const waitTime = Math.ceil(duration * 1000) + 50;
         setTimeout(() => {
           if (currentSource === source) {
@@ -388,7 +449,8 @@ export const preloadAllSounds = async () => {
 
   await Promise.all(allFiles.map(async (url) => {
     try {
-      await loadAudioFile(url);
+      const actualUrl = isCapacitor() ? getCapacitorUrl(url) : url;
+      await loadAudioFile(actualUrl);
     } catch (error) {
       console.warn('Failed to preload:', url);
     }
