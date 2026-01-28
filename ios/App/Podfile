@@ -12,7 +12,7 @@ def capacitor_pods
   pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
   pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
   pod 'CapacitorHaptics', :path => '../../node_modules/@capacitor/haptics'
-  pod 'CapacitorCommunityNativeAudio', :path => '../../node_modules/@capacitor-community/native-audio'
+  pod 'CapgoNativeAudio', :path => '../../node_modules/@capgo/native-audio'
 end
 
 target 'App' do

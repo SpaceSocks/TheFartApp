@@ -1,5 +1,5 @@
-// Audio Engine - Uses Native Audio plugin for iOS compatibility
-import { NativeAudio } from '@capacitor-community/native-audio';
+// Audio Engine - Uses Capgo Native Audio plugin for iOS compatibility
+import { NativeAudio } from '@capgo/native-audio';
 import { Capacitor } from '@capacitor/core';
 
 // Sound definitions
@@ -20,23 +20,31 @@ let currentAssetId = null;
 
 // Get the correct asset path based on platform
 const getAssetPath = (folder, file) => {
-  if (isIOS) {
-    // iOS needs path from app bundle - public folder is copied to App/public
-    return `public/sounds/${folder}/${file}.mp3`;
-  } else {
-    // Android just needs the filename from assets
-    return `sounds/${folder}/${file}.mp3`;
-  }
+  // Both iOS and Android: path relative to public/web folder root
+  return `sounds/${folder}/${file}.mp3`;
 };
 
-// Preload all sounds for native platforms
+// Configure and preload all sounds for native platforms
 const preloadSounds = async () => {
   if (!isNative) return;
   if (soundsPreloaded) return;
   if (preloadPromise) return preloadPromise;
 
   preloadPromise = (async () => {
-    console.log('Preloading sounds for', Capacitor.getPlatform());
+    console.log('Configuring native audio for', Capacitor.getPlatform());
+
+    // Configure audio session for playback (important for iOS)
+    try {
+      await NativeAudio.configure({
+        focus: true,
+        background: false
+      });
+      console.log('✓ Audio configured');
+    } catch (e) {
+      console.error('Audio configure error:', e.message);
+    }
+
+    console.log('Preloading sounds...');
 
     for (const [soundId, sound] of Object.entries(FART_SOUNDS)) {
       for (const file of sound.files) {
