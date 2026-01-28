@@ -1,0 +1,27 @@
+{
+	"appId": "com.fartapp.app",
+	"appName": "The Fart App",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https"
+	},
+	"plugins": {
+		"LocalNotifications": {
+			"smallIcon": "ic_stat_icon",
+			"iconColor": "#9333EA",
+			"sound": "default"
+		},
+		"SplashScreen": {
+			"launchShowDuration": 2000,
+			"backgroundColor": "#9333EA",
+			"showSpinner": false
+		}
+	},
+	"ios": {
+		"contentInset": "automatic"
+	},
+	"packageClassList": [
+		"AppPlugin",
+		"HapticsPlugin"
+	]
+}
