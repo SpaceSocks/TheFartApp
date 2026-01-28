@@ -23,7 +23,12 @@
       "Bash(npm run electron:dev:*)",
       "Bash(curl:*)",
       "Bash(start http://localhost:5173)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(git fetch:*)",
+      "Bash(gh api:*)",
+      "Bash(git remote:*)",
+      "Bash(git rm:*)",
+      "Bash(git restore:*)"
     ]
   }
 }
