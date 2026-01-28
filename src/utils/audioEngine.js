@@ -62,6 +62,19 @@ const isCapacitor = () => {
   return window.Capacitor !== undefined;
 };
 
+// Get the correct base URL for audio files on iOS/Capacitor
+const getAudioBasePath = () => {
+  if (window.Capacitor?.getPlatform?.() === 'ios') {
+    // iOS Capacitor uses capacitor:// scheme - use absolute paths
+    return '';
+  } else if (window.Capacitor) {
+    // Android or other Capacitor platforms
+    return '';
+  }
+  // Web fallback
+  return '';
+};
+
 // Load sound files from Electron or use web/Capacitor fallback
 const loadSoundFiles = async () => {
   if (soundFilesLoaded) return;
@@ -82,7 +95,7 @@ const loadSoundFiles = async () => {
         console.log('Sound files loaded from Electron:', files);
       } else {
         // Web/Capacitor: use absolute paths from public folder
-        const basePath = window.Capacitor ? '.' : '';
+        const basePath = getAudioBasePath();
         FART_SOUNDS.classic.files = [`${basePath}/sounds/Classic/classic1.mp3`, `${basePath}/sounds/Classic/classic2.mp3`, `${basePath}/sounds/Classic/classic3.mp3`];
         FART_SOUNDS.squeaky.files = [`${basePath}/sounds/Squeeky/squeeky1.mp3`, `${basePath}/sounds/Squeeky/squeeky2.mp3`, `${basePath}/sounds/Squeeky/squeeky3.mp3`];
         FART_SOUNDS.thunder.files = [`${basePath}/sounds/Thunder/thunder1.mp3`, `${basePath}/sounds/Thunder/thunder2.mp3`, `${basePath}/sounds/Thunder/thunder3.mp3`];
@@ -90,7 +103,7 @@ const loadSoundFiles = async () => {
         FART_SOUNDS.long.files = [`${basePath}/sounds/Long/long1.mp3`, `${basePath}/sounds/Long/long2.mp3`, `${basePath}/sounds/Long/long3.mp3`];
         FART_SOUNDS.rapidfire.files = [`${basePath}/sounds/RapidFire/rapidfire1.mp3`, `${basePath}/sounds/RapidFire/rapidfire2.mp3`, `${basePath}/sounds/RapidFire/rapidfire3.mp3`];
 
-        console.log('Using web/Capacitor sound files');
+        console.log('Using web/Capacitor sound files, platform:', window.Capacitor?.getPlatform?.() || 'web');
       }
 
       soundFilesLoaded = true;
@@ -114,6 +127,13 @@ const audioCache = new Map();
 // Track the currently playing audio source so we can stop it
 let currentSource = null;
 let currentGainNode = null;
+let currentHtmlAudio = null;
+
+// Check if we're on iOS
+const isIOS = () => {
+  return window.Capacitor?.getPlatform?.() === 'ios' ||
+    /iPad|iPhone|iPod/.test(navigator.userAgent);
+};
 
 // Load an MP3 file and return audio buffer
 const loadAudioFile = async (url) => {
@@ -142,8 +162,38 @@ const loadAudioFile = async (url) => {
   }
 };
 
+// Play audio using HTML5 Audio element (more reliable on iOS)
+const playWithHtmlAudio = (url, volume = 0.8) => {
+  return new Promise((resolve, reject) => {
+    // Stop any currently playing HTML audio
+    if (currentHtmlAudio) {
+      currentHtmlAudio.pause();
+      currentHtmlAudio = null;
+    }
+
+    const audio = new Audio(url);
+    audio.volume = volume;
+    currentHtmlAudio = audio;
+
+    audio.onended = () => {
+      if (currentHtmlAudio === audio) {
+        currentHtmlAudio = null;
+      }
+      resolve(audio.duration);
+    };
+
+    audio.onerror = (e) => {
+      console.error('HTML Audio error:', e);
+      reject(new Error('Failed to play audio'));
+    };
+
+    audio.play().catch(reject);
+  });
+};
+
 // Stop any currently playing sound
 export const stopCurrentSound = () => {
+  // Stop Web Audio API source
   if (currentSource) {
     try {
       currentSource.stop();
@@ -152,6 +202,17 @@ export const stopCurrentSound = () => {
     }
     currentSource = null;
     currentGainNode = null;
+  }
+
+  // Stop HTML Audio element
+  if (currentHtmlAudio) {
+    try {
+      currentHtmlAudio.pause();
+      currentHtmlAudio.currentTime = 0;
+    } catch (e) {
+      // Audio may have already stopped
+    }
+    currentHtmlAudio = null;
   }
 };
 
@@ -201,13 +262,6 @@ export const playFartSound = async (soundId, volume = 0.8) => {
   // Ensure sound files are loaded
   await loadSoundFiles();
 
-  const ctx = getAudioContext();
-
-  // Resume audio context if suspended (needed for user gesture requirement)
-  if (ctx.state === 'suspended') {
-    await ctx.resume();
-  }
-
   const sound = FART_SOUNDS[soundId];
   if (!sound || !sound.files || sound.files.length === 0) {
     // Fallback to classic if sound not found
@@ -222,9 +276,27 @@ export const playFartSound = async (soundId, volume = 0.8) => {
   const randomIndex = Math.floor(Math.random() * sound.files.length);
   const fileUrl = sound.files[randomIndex];
 
-  console.log(`Playing ${soundId} (${randomIndex + 1}/${sound.files.length}): ${fileUrl}`);
+  console.log(`Playing ${soundId} (${randomIndex + 1}/${sound.files.length}): ${fileUrl}, iOS: ${isIOS()}`);
 
+  // On iOS, use HTML5 Audio for more reliable playback
+  if (isIOS()) {
+    try {
+      return await playWithHtmlAudio(fileUrl, volume);
+    } catch (error) {
+      console.error('iOS HTML Audio failed, trying Web Audio API:', error);
+      // Fall through to Web Audio API
+    }
+  }
+
+  // Web Audio API for non-iOS or as fallback
   try {
+    const ctx = getAudioContext();
+
+    // Resume audio context if suspended (needed for user gesture requirement)
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+
     const audioBuffer = await loadAudioFile(fileUrl);
     return await playAudioBuffer(audioBuffer, volume);
   } catch (error) {

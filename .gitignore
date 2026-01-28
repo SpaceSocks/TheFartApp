@@ -8,8 +8,7 @@ release/
 ios/App/Pods/
 ios/DerivedData/
 
-# Capacitor
-capacitor.config.json
+# Capacitor (config is tracked)
 
 # Environment
 .env

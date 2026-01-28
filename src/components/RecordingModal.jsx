@@ -21,7 +21,10 @@ function RecordingModal({ onClose, onComplete }) {
   useEffect(() => {
     const init = async () => {
       if (!isRecordingSupported()) {
-        setError('Recording is not supported in this browser');
+        const isIOS = window.Capacitor?.getPlatform?.() === 'ios' || /iPad|iPhone|iPod/.test(navigator.userAgent);
+        setError(isIOS
+          ? 'Recording requires iOS 14.5 or later. Please update your device.'
+          : 'Recording is not supported on this device');
         return;
       }
 
