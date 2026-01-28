@@ -13,40 +13,56 @@ export const FART_SOUNDS = {
 };
 
 const isNative = Capacitor.isNativePlatform();
+const isIOS = Capacitor.getPlatform() === 'ios';
 let soundsPreloaded = false;
+let preloadPromise = null;
 let currentAssetId = null;
+
+// Get the correct asset path based on platform
+const getAssetPath = (folder, file) => {
+  if (isIOS) {
+    // iOS needs path from app bundle - public folder is copied to App/public
+    return `public/sounds/${folder}/${file}.mp3`;
+  } else {
+    // Android just needs the filename from assets
+    return `sounds/${folder}/${file}.mp3`;
+  }
+};
 
 // Preload all sounds for native platforms
 const preloadSounds = async () => {
-  if (!isNative || soundsPreloaded) return;
+  if (!isNative) return;
+  if (soundsPreloaded) return;
+  if (preloadPromise) return preloadPromise;
 
-  console.log('Preloading sounds for native platform...');
+  preloadPromise = (async () => {
+    console.log('Preloading sounds for', Capacitor.getPlatform());
 
-  for (const [soundId, sound] of Object.entries(FART_SOUNDS)) {
-    for (const file of sound.files) {
-      const assetId = `${soundId}_${file}`;
-      const assetPath = `public/sounds/${sound.folder}/${file}.mp3`;
+    for (const [soundId, sound] of Object.entries(FART_SOUNDS)) {
+      for (const file of sound.files) {
+        const assetId = `${soundId}_${file}`;
+        const assetPath = getAssetPath(sound.folder, file);
 
-      try {
-        await NativeAudio.preload({
-          assetId,
-          assetPath,
-          audioChannelNum: 1,
-          isUrl: false
-        });
-        console.log('Preloaded:', assetId);
-      } catch (e) {
-        console.warn('Failed to preload:', assetId, e.message);
+        try {
+          await NativeAudio.preload({
+            assetId,
+            assetPath,
+            audioChannelNum: 1,
+            isUrl: false
+          });
+          console.log('✓ Preloaded:', assetId, 'from', assetPath);
+        } catch (e) {
+          console.error('✗ Failed to preload:', assetId, assetPath, e.message);
+        }
       }
     }
-  }
 
-  soundsPreloaded = true;
-  console.log('Sound preloading complete');
+    soundsPreloaded = true;
+    console.log('Sound preloading complete');
+  })();
+
+  return preloadPromise;
 };
-
-// Initialize on load
-preloadSounds();
 
 // HTML5 Audio fallback for web
 let webAudio = null;
@@ -74,46 +90,63 @@ export const stopCurrentSound = async () => {
 
 // Play a fart sound
 export const playFartSound = async (soundId, volume = 0.8) => {
-  await preloadSounds();
-
   const sound = FART_SOUNDS[soundId] || FART_SOUNDS.classic;
   const randomFile = sound.files[Math.floor(Math.random() * sound.files.length)];
   const assetId = `${sound.id}_${randomFile}`;
 
-  console.log('Playing sound:', assetId, 'Native:', isNative);
+  console.log('Playing:', assetId, '| Platform:', Capacitor.getPlatform(), '| Native:', isNative);
 
   // Stop any currently playing sound
   await stopCurrentSound();
 
   if (isNative) {
+    // Ensure sounds are preloaded
+    await preloadSounds();
+
     // Use Native Audio plugin
     try {
       await NativeAudio.setVolume({ assetId, volume });
       await NativeAudio.play({ assetId });
       currentAssetId = assetId;
+      console.log('✓ Playing native audio:', assetId);
 
-      // Get duration and wait
-      const { duration } = await NativeAudio.getDuration({ assetId });
-      return duration || 1;
+      // Get duration
+      try {
+        const { duration } = await NativeAudio.getDuration({ assetId });
+        return duration || 1;
+      } catch {
+        return 1;
+      }
     } catch (e) {
-      console.error('Native audio error:', e);
-      return 0;
+      console.error('✗ Native audio play error:', e.message);
+      // Try web audio as fallback
+      return playWithWebAudio(sound.folder, randomFile, volume);
     }
   } else {
-    // Web fallback
-    const audio = getWebAudio();
-    if (!audio) return 0;
-
-    const url = `/sounds/${sound.folder}/${randomFile}.mp3`;
-    audio.src = url;
-    audio.volume = volume;
-
-    return new Promise((resolve) => {
-      audio.onended = () => resolve(audio.duration || 1);
-      audio.onerror = () => resolve(0);
-      audio.play().catch(() => resolve(0));
-    });
+    return playWithWebAudio(sound.folder, randomFile, volume);
   }
+};
+
+// Web audio fallback
+const playWithWebAudio = async (folder, file, volume) => {
+  const audio = getWebAudio();
+  if (!audio) return 0;
+
+  const url = `/sounds/${folder}/${file}.mp3`;
+  audio.src = url;
+  audio.volume = volume;
+
+  return new Promise((resolve) => {
+    audio.onended = () => resolve(audio.duration || 1);
+    audio.onerror = (e) => {
+      console.error('Web audio error:', e);
+      resolve(0);
+    };
+    audio.play().catch((e) => {
+      console.error('Web audio play failed:', e);
+      resolve(0);
+    });
+  });
 };
 
 // Play random sound
@@ -122,7 +155,7 @@ export const playRandomFartSound = async (volume = 0.8) => {
   return playFartSound(ids[Math.floor(Math.random() * ids.length)], volume);
 };
 
-// Play custom recorded sound (web audio for blobs)
+// Play custom recorded sound (always uses web audio for blobs)
 export const playCustomSound = async (audioBlob, volume = 0.8) => {
   await stopCurrentSound();
 

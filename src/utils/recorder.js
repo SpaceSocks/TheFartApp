@@ -1,41 +1,52 @@
 // Audio Recording Utility
 // Handles microphone access and recording
 
+import { Capacitor } from '@capacitor/core';
+
 let mediaRecorder = null;
 let audioChunks = [];
 let recordingStream = null;
 
-// Check if we're on iOS Capacitor
-const isIOSCapacitor = () => {
-  return window.Capacitor?.getPlatform?.() === 'ios';
-};
+// Check platform
+const isIOS = () => Capacitor.getPlatform() === 'ios';
+const isNative = () => Capacitor.isNativePlatform();
 
 // Check if recording is supported
 export const isRecordingSupported = () => {
-  // On iOS Capacitor, we need to check more carefully
-  if (isIOSCapacitor()) {
-    // iOS WKWebView supports getUserMedia in iOS 14.5+
-    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  // Check if mediaDevices API exists
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    console.log('Recording not supported: mediaDevices API not available');
+    return false;
   }
-  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  return true;
 };
 
 // Request microphone permission
 export const requestMicrophonePermission = async () => {
   try {
+    console.log('Requesting microphone permission...');
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     // Stop the stream immediately, we just wanted permission
     stream.getTracks().forEach(track => track.stop());
+    console.log('Microphone permission granted');
     return { success: true };
   } catch (error) {
+    console.error('Microphone permission error:', error.name, error.message);
+
     let message = 'Microphone access denied';
 
     if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-      message = 'Microphone access denied - Please enable in system settings';
+      message = isIOS()
+        ? 'Microphone access denied. Go to Settings > Privacy > Microphone and enable access for this app.'
+        : 'Microphone access denied - Please enable in settings';
     } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-      message = 'No microphone found - Please connect a microphone';
+      message = 'No microphone found on this device';
     } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-      message = 'Microphone in use by another app';
+      message = 'Microphone is in use by another app';
+    } else if (error.name === 'NotSupportedError') {
+      message = isIOS()
+        ? 'Recording requires iOS 14.5 or later'
+        : 'Recording is not supported on this device';
     }
 
     return { success: false, error: message };
@@ -48,7 +59,6 @@ export const checkMicrophonePermission = async () => {
     const result = await navigator.permissions.query({ name: 'microphone' });
     return result.state; // 'granted', 'denied', or 'prompt'
   } catch {
-    // Firefox doesn't support permissions.query for microphone
     return 'prompt';
   }
 };
@@ -60,14 +70,15 @@ export const startRecording = async () => {
     if (!isRecordingSupported()) {
       return {
         success: false,
-        error: isIOSCapacitor()
-          ? 'Recording requires iOS 14.5 or later. Please update your device.'
+        error: isIOS()
+          ? 'Recording requires iOS 14.5 or later'
           : 'Recording is not supported on this device'
       };
     }
 
     audioChunks = [];
 
+    console.log('Starting getUserMedia...');
     recordingStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
@@ -75,31 +86,29 @@ export const startRecording = async () => {
         autoGainControl: true,
       }
     });
+    console.log('Got media stream');
 
-    // On iOS, prefer mp4/aac, on other platforms prefer webm
-    let mimeType = 'audio/webm';
-    if (isIOSCapacitor() || /iPad|iPhone|iPod/.test(navigator.userAgent)) {
-      // iOS supports mp4 better
-      if (MediaRecorder.isTypeSupported('audio/mp4')) {
-        mimeType = 'audio/mp4';
-      } else if (MediaRecorder.isTypeSupported('audio/aac')) {
-        mimeType = 'audio/aac';
-      } else if (MediaRecorder.isTypeSupported('audio/wav')) {
-        mimeType = 'audio/wav';
-      }
-    } else {
-      // Prefer webm for smaller file size on non-iOS
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        mimeType = 'audio/webm;codecs=opus';
-      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-        mimeType = 'audio/webm';
-      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-        mimeType = 'audio/mp4';
+    // Determine best mime type
+    let mimeType = '';
+    const types = [
+      'audio/mp4',
+      'audio/aac',
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/wav'
+    ];
+
+    for (const type of types) {
+      if (MediaRecorder.isTypeSupported(type)) {
+        mimeType = type;
+        break;
       }
     }
 
-    console.log('Starting recording with mimeType:', mimeType);
-    mediaRecorder = new MediaRecorder(recordingStream, { mimeType });
+    console.log('Using mimeType:', mimeType || 'default');
+
+    const options = mimeType ? { mimeType } : {};
+    mediaRecorder = new MediaRecorder(recordingStream, options);
 
     mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
@@ -107,19 +116,25 @@ export const startRecording = async () => {
       }
     };
 
-    mediaRecorder.start(100); // Collect data every 100ms
+    mediaRecorder.start(100);
+    console.log('Recording started');
 
     return { success: true };
   } catch (error) {
-    console.error('Error starting recording:', error);
+    console.error('Error starting recording:', error.name, error.message);
 
     let errorMessage = 'Recording failed - Please try again';
+
     if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-      errorMessage = 'Microphone permission denied. Please allow microphone access in Settings.';
+      errorMessage = isIOS()
+        ? 'Microphone access denied. Go to Settings > Privacy > Microphone to enable.'
+        : 'Microphone permission denied';
     } else if (error.name === 'NotFoundError') {
-      errorMessage = 'No microphone found on this device.';
-    } else if (error.name === 'NotSupportedError') {
-      errorMessage = 'Recording is not supported on this device.';
+      errorMessage = 'No microphone found';
+    } else if (error.name === 'NotSupportedError' || error.name === 'TypeError') {
+      errorMessage = isIOS()
+        ? 'Recording requires iOS 14.5 or later'
+        : 'Recording not supported on this device';
     }
 
     return {
@@ -138,7 +153,7 @@ export const stopRecording = () => {
     }
 
     mediaRecorder.onstop = () => {
-      const mimeType = mediaRecorder.mimeType;
+      const mimeType = mediaRecorder.mimeType || 'audio/mp4';
       const audioBlob = new Blob(audioChunks, { type: mimeType });
 
       // Stop all tracks
@@ -150,6 +165,7 @@ export const stopRecording = () => {
       audioChunks = [];
       mediaRecorder = null;
 
+      console.log('Recording stopped, blob size:', audioBlob.size);
       resolve({ success: true, audioBlob });
     };
 
@@ -184,7 +200,6 @@ export const getAudioDuration = async (audioBlob) => {
     audio.src = URL.createObjectURL(audioBlob);
 
     audio.onloadedmetadata = () => {
-      // Handle infinity duration bug in some browsers
       if (audio.duration === Infinity || isNaN(audio.duration)) {
         audio.currentTime = 1e101;
         audio.ontimeupdate = () => {
