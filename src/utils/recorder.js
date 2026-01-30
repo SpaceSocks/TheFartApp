@@ -1,7 +1,9 @@
 // Audio Recording Utility
 // Handles microphone access and recording
+// Uses native plugin on iOS/Android, web MediaRecorder as fallback
 
 import { Capacitor } from '@capacitor/core';
+import { VoiceRecorder } from 'capacitor-voice-recorder';
 
 let mediaRecorder = null;
 let audioChunks = [];
@@ -9,11 +11,23 @@ let recordingStream = null;
 
 // Check platform
 const isIOS = () => Capacitor.getPlatform() === 'ios';
+const isAndroid = () => Capacitor.getPlatform() === 'android';
 const isNative = () => Capacitor.isNativePlatform();
 
 // Check if recording is supported
-export const isRecordingSupported = () => {
-  // Check if mediaDevices API exists
+export const isRecordingSupported = async () => {
+  if (isNative()) {
+    // On native, use the voice recorder plugin
+    try {
+      const result = await VoiceRecorder.canDeviceVoiceRecord();
+      return result.value === true;
+    } catch (error) {
+      console.log('Voice recorder check failed:', error);
+      return false;
+    }
+  }
+
+  // On web, check if mediaDevices API exists
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     console.log('Recording not supported: mediaDevices API not available');
     return false;
@@ -25,6 +39,24 @@ export const isRecordingSupported = () => {
 export const requestMicrophonePermission = async () => {
   try {
     console.log('Requesting microphone permission...');
+
+    if (isNative()) {
+      // Use native plugin for permission
+      const permStatus = await VoiceRecorder.requestAudioRecordingPermission();
+      if (permStatus.value === true) {
+        console.log('Microphone permission granted (native)');
+        return { success: true };
+      } else {
+        return {
+          success: false,
+          error: isIOS()
+            ? 'Microphone access denied. Go to Settings > Privacy & Security > Microphone and enable access for The Fart App.'
+            : 'Microphone access denied. Please enable in app settings.'
+        };
+      }
+    }
+
+    // Web fallback
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     // Stop the stream immediately, we just wanted permission
     stream.getTracks().forEach(track => track.stop());
@@ -37,7 +69,7 @@ export const requestMicrophonePermission = async () => {
 
     if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
       message = isIOS()
-        ? 'Microphone access denied. Go to Settings > Privacy > Microphone and enable access for this app.'
+        ? 'Microphone access denied. Go to Settings > Privacy & Security > Microphone and enable access for The Fart App.'
         : 'Microphone access denied - Please enable in settings';
     } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
       message = 'No microphone found on this device';
@@ -56,6 +88,10 @@ export const requestMicrophonePermission = async () => {
 // Check if we have microphone permission
 export const checkMicrophonePermission = async () => {
   try {
+    if (isNative()) {
+      const status = await VoiceRecorder.hasAudioRecordingPermission();
+      return status.value ? 'granted' : 'prompt';
+    }
     const result = await navigator.permissions.query({ name: 'microphone' });
     return result.state; // 'granted', 'denied', or 'prompt'
   } catch {
@@ -67,15 +103,32 @@ export const checkMicrophonePermission = async () => {
 export const startRecording = async () => {
   try {
     // Check if recording is supported
-    if (!isRecordingSupported()) {
+    const supported = await isRecordingSupported();
+    if (!supported) {
       return {
         success: false,
         error: isIOS()
-          ? 'Recording requires iOS 14.5 or later'
+          ? 'Recording is not available. Please check microphone permissions in Settings.'
           : 'Recording is not supported on this device'
       };
     }
 
+    if (isNative()) {
+      // Use native voice recorder
+      console.log('Starting native recording...');
+      const result = await VoiceRecorder.startRecording();
+      if (result.value === true) {
+        console.log('Native recording started');
+        return { success: true };
+      } else {
+        return {
+          success: false,
+          error: 'Failed to start recording'
+        };
+      }
+    }
+
+    // Web fallback using MediaRecorder
     audioChunks = [];
 
     console.log('Starting getUserMedia...');
@@ -127,13 +180,13 @@ export const startRecording = async () => {
 
     if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
       errorMessage = isIOS()
-        ? 'Microphone access denied. Go to Settings > Privacy > Microphone to enable.'
+        ? 'Microphone access denied. Go to Settings > Privacy & Security > Microphone to enable.'
         : 'Microphone permission denied';
     } else if (error.name === 'NotFoundError') {
       errorMessage = 'No microphone found';
     } else if (error.name === 'NotSupportedError' || error.name === 'TypeError') {
       errorMessage = isIOS()
-        ? 'Recording requires iOS 14.5 or later'
+        ? 'Recording is not available on this device'
         : 'Recording not supported on this device';
     }
 
@@ -145,7 +198,38 @@ export const startRecording = async () => {
 };
 
 // Stop recording and return the audio blob
-export const stopRecording = () => {
+export const stopRecording = async () => {
+  if (isNative()) {
+    try {
+      console.log('Stopping native recording...');
+      const result = await VoiceRecorder.stopRecording();
+
+      if (result.value && result.value.recordDataBase64) {
+        // Convert base64 to blob
+        const base64Data = result.value.recordDataBase64;
+        const mimeType = result.value.mimeType || 'audio/aac';
+
+        // Decode base64
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const audioBlob = new Blob([byteArray], { type: mimeType });
+
+        console.log('Native recording stopped, blob size:', audioBlob.size);
+        return { success: true, audioBlob };
+      } else {
+        return { success: false, error: 'No recording data received' };
+      }
+    } catch (error) {
+      console.error('Error stopping native recording:', error);
+      return { success: false, error: 'Failed to stop recording' };
+    }
+  }
+
+  // Web fallback
   return new Promise((resolve) => {
     if (!mediaRecorder || mediaRecorder.state === 'inactive') {
       resolve({ success: false, error: 'No active recording' });
@@ -174,7 +258,17 @@ export const stopRecording = () => {
 };
 
 // Cancel recording without saving
-export const cancelRecording = () => {
+export const cancelRecording = async () => {
+  if (isNative()) {
+    try {
+      await VoiceRecorder.stopRecording();
+    } catch (error) {
+      // Ignore errors when canceling
+      console.log('Cancel recording error (ignored):', error);
+    }
+    return;
+  }
+
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop();
   }
@@ -189,7 +283,15 @@ export const cancelRecording = () => {
 };
 
 // Check if currently recording
-export const isRecording = () => {
+export const isRecording = async () => {
+  if (isNative()) {
+    try {
+      const status = await VoiceRecorder.getCurrentStatus();
+      return status.status === 'RECORDING';
+    } catch {
+      return false;
+    }
+  }
   return mediaRecorder && mediaRecorder.state === 'recording';
 };
 

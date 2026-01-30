@@ -20,10 +20,11 @@ function RecordingModal({ onClose, onComplete }) {
   // Check permissions on mount
   useEffect(() => {
     const init = async () => {
-      if (!isRecordingSupported()) {
+      const supported = await isRecordingSupported();
+      if (!supported) {
         const isIOS = window.Capacitor?.getPlatform?.() === 'ios' || /iPad|iPhone|iPod/.test(navigator.userAgent);
         setError(isIOS
-          ? 'Recording requires iOS 14.5 or later. Please update your device.'
+          ? 'Recording is not available. Please check microphone permissions in Settings > Privacy & Security > Microphone.'
           : 'Recording is not supported on this device');
         return;
       }

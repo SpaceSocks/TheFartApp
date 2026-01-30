@@ -60,10 +60,18 @@ function InstantFart({ customSounds, onCustomSoundsChange, onShowPaywall }) {
 
       incrementFartCount();
 
+      // Check if we just hit the trial limit
+      const currentStats = useStore.getState().stats;
+      const justHitLimit = !isPremium && currentStats.totalFarts >= FREE_TRIAL_LIMIT;
+      if (justHitLimit && onShowPaywall) {
+        // Small delay so the fart sound plays first
+        setTimeout(() => onShowPaywall(), 500);
+      }
+
       // Check for new achievements
       setTimeout(() => {
-        const currentStats = useStore.getState().stats;
-        const newAchievements = currentStats.achievements.filter(
+        const latestStats = useStore.getState().stats;
+        const newAchievements = latestStats.achievements.filter(
           (a) => !previousAchievements.includes(a)
         );
         if (newAchievements.length > 0) {
